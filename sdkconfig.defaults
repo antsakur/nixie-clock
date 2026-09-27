@@ -1,0 +1,18 @@
+# Committed defaults. Keep secrets out of git: override Wi-Fi in a local sdkconfig
+# (gitignored) or via idf.py menuconfig.
+
+CONFIG_IDF_TARGET="esp32c6"
+
+CONFIG_ESP32_C6_WROOM_1=y
+# CONFIG_ESP32_C6_MINI_1 is not set
+
+CONFIG_ESP_WIFI_SSID="myssid"
+CONFIG_ESP_WIFI_PASSWORD="mypassword"
+CONFIG_ESP_MAXIMUM_RETRY=5
+CONFIG_ESP_WIFI_AUTH_WPA2_PSK=y
+CONFIG_ESP_WPA3_SAE_PWE_BOTH=y
+
+CONFIG_SNTP_TIME_SERVER="europe.pool.ntp.org"
+
+CONFIG_BUILD_MAIN_PROGRAM=y
+# CONFIG_BUILD_TEST_PROGRAM is not set

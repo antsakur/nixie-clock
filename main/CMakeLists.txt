@@ -1,2 +1,34 @@
-idf_component_register(SRCS "main.c"
-                    INCLUDE_DIRS ".")
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "../src/clock/clock.c"
+        "../src/display/display.c"
+        "../src/web/web_server.c"
+        "../src/drivers/psu/psu_driver.c"
+        "../src/drivers/pwm/pwm_driver.c"
+        "../src/drivers/shift_reg/shift_reg_driver.c"
+        "../src/drivers/gpio/gpio_driver.c"
+        "../src/drivers/wifi/wifi_driver.c"
+    INCLUDE_DIRS
+        "."
+        "../src"
+        "../src/clock"
+        "../src/display"
+        "../src/web"
+        "../src/drivers/psu"
+        "../src/drivers/pwm"
+        "../src/drivers/shift_reg"
+        "../src/drivers/gpio"
+        "../src/drivers/wifi"
+    REQUIRES
+        nvs_flash
+        esp_wifi
+        esp_event
+        esp_netif
+        esp_http_server
+        driver
+        esp_driver_gpio
+        esp_driver_ledc
+        esp_driver_rmt
+        esp_rom
+)
