@@ -22,5 +22,3 @@ esp_err_t wifi_driver_start_ap(void);
 esp_err_t wifi_driver_enter_setup_mode(void);
 bool wifi_driver_sta_connected(void);
 void wifi_driver_get_sta_ip(char *buf, size_t len);
-bool wifi_driver_ap_running(void);
-void wifi_driver_get_ap_ssid(char *buf, size_t len);

@@ -599,16 +599,3 @@ void wifi_driver_get_sta_ip(char *buf, size_t len)
     snprintf(buf, len, IPSTR, IP2STR(&ip.ip));
 }
 
-bool wifi_driver_ap_running(void)
-{
-    return ap_running;
-}
-
-void wifi_driver_get_ap_ssid(char *buf, size_t len)
-{
-    if (!buf || len == 0) {
-        return;
-    }
-    strncpy(buf, ap_ssid, len - 1);
-    buf[len - 1] = '\0';
-}

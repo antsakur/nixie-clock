@@ -231,31 +231,11 @@ esp_err_t display_set_settings(const display_settings_t *settings)
     return err;
 }
 
-esp_err_t display_set_poison(const display_poison_cfg_t *cfg)
-{
-    xSemaphoreTake(settings_lock, portMAX_DELAY);
-    poison_cfg = *cfg;
-    sanitize_poison(&poison_cfg);
-    esp_err_t err = settings_save_unlocked();
-    xSemaphoreGive(settings_lock);
-    return err;
-}
-
 void display_get_random(display_random_cfg_t *out)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     *out = random_cfg;
     xSemaphoreGive(settings_lock);
-}
-
-esp_err_t display_set_random(const display_random_cfg_t *cfg)
-{
-    xSemaphoreTake(settings_lock, portMAX_DELAY);
-    random_cfg = *cfg;
-    sanitize_random(&random_cfg);
-    esp_err_t err = settings_save_unlocked();
-    xSemaphoreGive(settings_lock);
-    return err;
 }
 
 int32_t display_get_fade_ms(void)
@@ -267,15 +247,6 @@ int32_t display_get_fade_ms(void)
     return value;
 }
 
-esp_err_t display_set_fade_ms(int32_t value)
-{
-    xSemaphoreTake(settings_lock, portMAX_DELAY);
-    fade_ms = sanitize_fade(value);
-    esp_err_t err = settings_save_unlocked();
-    xSemaphoreGive(settings_lock);
-    return err;
-}
-
 bool display_get_fade_enabled(void)
 {
     bool enabled;
@@ -283,15 +254,6 @@ bool display_get_fade_enabled(void)
     enabled = fade_enabled;
     xSemaphoreGive(settings_lock);
     return enabled;
-}
-
-esp_err_t display_set_fade_enabled(bool enabled)
-{
-    xSemaphoreTake(settings_lock, portMAX_DELAY);
-    fade_enabled = enabled;
-    esp_err_t err = settings_save_unlocked();
-    xSemaphoreGive(settings_lock);
-    return err;
 }
 
 static void copy_poison(display_poison_cfg_t *out)
@@ -864,12 +826,6 @@ void display_request_fade(void)
     post_message(&msg);
 }
 
-void display_request_fade_test(void)
-{
-    display_msg_t msg = {.cmd = DISPLAY_CMD_FADE_TEST};
-    post_message(&msg);
-}
-
 void display_request_poison(const display_poison_cfg_t *override_or_null)
 {
     display_msg_t msg = {.cmd = DISPLAY_CMD_POISON};
@@ -878,12 +834,6 @@ void display_request_poison(const display_poison_cfg_t *override_or_null)
         msg.poison = *override_or_null;
         sanitize_poison(&msg.poison);
     }
-    post_message(&msg);
-}
-
-void display_request_random(void)
-{
-    display_msg_t msg = {.cmd = DISPLAY_CMD_RANDOM};
     post_message(&msg);
 }
 
@@ -900,17 +850,6 @@ void display_request_save_result(bool ok, display_after_t after)
 bool display_is_showing_time(void)
 {
     return shown_mode == MODE_SHOW;
-}
-
-uint64_t display_format_time(struct tm timeinfo)
-{
-    int digits[TUBE_COUNT] = {
-        timeinfo.tm_min % 10,
-        timeinfo.tm_min / 10,
-        timeinfo.tm_hour % 10,
-        timeinfo.tm_hour / 10,
-    };
-    return pack_symbols(digits);
 }
 
 void display_init(void)

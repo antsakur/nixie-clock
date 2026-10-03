@@ -73,6 +73,7 @@ Both kits:
 | Signal | WROOM-1 / DevKitC-1 | MINI-1 / DevKitM-1 |
 |---|---|---|
 | Presence | GPIO0 | GPIO0 |
+| USB-C CC1 / CC2 | GPIO2 / GPIO1 | — |
 | UART RX / TX | GPIO6 / GPIO7 | GPIO4 / GPIO5 |
 | HV PSU enable | GPIO11 | GPIO7 |
 | Shift-reg latch | GPIO18 | GPIO15 |

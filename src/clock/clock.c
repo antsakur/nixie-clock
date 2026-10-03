@@ -63,7 +63,6 @@ static bool night_enabled = true;
 static uint8_t night_start = 23;
 static uint8_t night_end = 7;
 static uint32_t applied_brightness = 0xFFFFFFFF;
-static bool hv_force;
 static bool presence_enabled = true;
 static uint16_t idle_minutes = 10;
 static uint16_t roll_minutes = 5;
@@ -114,12 +113,11 @@ static esp_err_t clock_settings_save(void)
     CLOCK_NVS_SET(nvs_set_u8(handle, "night", night_enabled ? 1 : 0));
     CLOCK_NVS_SET(nvs_set_u8(handle, "nstart", night_start));
     CLOCK_NVS_SET(nvs_set_u8(handle, "nend", night_end));
-    CLOCK_NVS_SET(nvs_set_u8(handle, "force", hv_force ? 1 : 0));
     CLOCK_NVS_SET(nvs_set_u8(handle, "pres", presence_enabled ? 1 : 0));
     CLOCK_NVS_SET(nvs_set_u16(handle, "idle", idle_minutes));
     CLOCK_NVS_SET(nvs_set_u16(handle, "rollm", roll_minutes));
     CLOCK_NVS_SET(nvs_set_u16(handle, "trans", transition_s));
-    CLOCK_NVS_SET(nvs_set_u8(handle, "zone", zone_index < 0 ? 255 : (uint8_t)zone_index));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "zone", (uint8_t)zone_index));
     CLOCK_NVS_SET(nvs_set_u8(handle, "dst", dst_enabled ? 1 : 0));
     CLOCK_NVS_SET(nvs_set_str(handle, "tz", timezone));
     CLOCK_NVS_SET(nvs_commit(handle));
@@ -169,13 +167,8 @@ static void clock_settings_load(void)
     if (nvs_get_u8(handle, "nend", &value) == ESP_OK && value < 24) {
         night_end = value;
     }
-    if (nvs_get_u8(handle, "force", &value) == ESP_OK) {
-        hv_force = value != 0;
-    }
     if (nvs_get_u8(handle, "pres", &value) == ESP_OK) {
         presence_enabled = value != 0;
-    } else if (hv_force) {
-        presence_enabled = false;
     }
     uint16_t idle = 0;
     if (nvs_get_u16(handle, "idle", &idle) == ESP_OK && idle >= 1 && idle <= 240) {
@@ -215,7 +208,6 @@ static void clock_apply_timezone(void)
     tzset();
 }
 
-static void clock_apply_timezone(void);
 static void local_time(struct tm *out);
 
 static bool clock_is_night(const struct tm *timeinfo)
@@ -473,14 +465,6 @@ static void clock_brightness_changed_locked(void)
     clock_follow_brightness(&timeinfo);
 }
 
-static esp_err_t clock_brightness_changed(void)
-{
-    state_lock_take();
-    clock_brightness_changed_locked();
-    state_lock_give();
-    return clock_settings_save();
-}
-
 esp_err_t clock_set_brightness_settings(const clock_brightness_settings_t *settings)
 {
     if (!settings) {
@@ -512,17 +496,6 @@ uint8_t clock_get_brightness(void)
     return value;
 }
 
-esp_err_t clock_set_brightness(uint8_t percent)
-{
-    if (percent > 100) {
-        percent = 100;
-    }
-    state_lock_take();
-    day_brightness = percent;
-    state_lock_give();
-    return clock_brightness_changed();
-}
-
 uint8_t clock_get_night_brightness(void)
 {
     state_lock_take();
@@ -531,31 +504,12 @@ uint8_t clock_get_night_brightness(void)
     return value;
 }
 
-esp_err_t clock_set_night_brightness(uint8_t percent)
-{
-    if (percent > 100) {
-        percent = 100;
-    }
-    state_lock_take();
-    night_brightness = percent;
-    state_lock_give();
-    return clock_brightness_changed();
-}
-
 bool clock_get_night_enabled(void)
 {
     state_lock_take();
     bool enabled = night_enabled;
     state_lock_give();
     return enabled;
-}
-
-esp_err_t clock_set_night_enabled(bool enabled)
-{
-    state_lock_take();
-    night_enabled = enabled;
-    state_lock_give();
-    return clock_brightness_changed();
 }
 
 uint8_t clock_get_night_start(void)
@@ -574,21 +528,6 @@ uint8_t clock_get_night_end(void)
     return value;
 }
 
-esp_err_t clock_set_night_hours(uint8_t start_hour, uint8_t end_hour)
-{
-    if (start_hour > 23) {
-        start_hour = 23;
-    }
-    if (end_hour > 23) {
-        end_hour = 23;
-    }
-    state_lock_take();
-    night_start = start_hour;
-    night_end = end_hour;
-    state_lock_give();
-    return clock_brightness_changed();
-}
-
 int clock_zone_count(void)
 {
     return (int)(sizeof(clock_zones) / sizeof(clock_zones[0]));
@@ -597,7 +536,7 @@ int clock_zone_count(void)
 const char *clock_zone_id(int index)
 {
     if (index < 0 || index >= clock_zone_count()) {
-        return "custom";
+        return "";
     }
     return clock_zones[index].id;
 }
@@ -605,7 +544,7 @@ const char *clock_zone_id(int index)
 const char *clock_zone_label(int index)
 {
     if (index < 0 || index >= clock_zone_count()) {
-        return "Custom";
+        return "";
     }
     return clock_zones[index].label;
 }
@@ -613,7 +552,7 @@ const char *clock_zone_label(int index)
 bool clock_zone_has_dst(int index)
 {
     if (index < 0 || index >= clock_zone_count()) {
-        return true;
+        return false;
     }
     return clock_zones[index].dst_tz != NULL;
 }
@@ -647,16 +586,6 @@ esp_err_t clock_set_zone(int index, bool dst)
     return clock_store_tz(tz);
 }
 
-esp_err_t clock_set_custom_timezone(const char *tz)
-{
-    if (!tz || tz[0] == '\0') {
-        return ESP_ERR_INVALID_ARG;
-    }
-    zone_index = -1;
-    dst_enabled = false;
-    return clock_store_tz(tz);
-}
-
 void clock_format_now(char *buf, size_t len)
 {
     if (!buf || len == 0) {
@@ -667,38 +596,6 @@ void clock_format_now(char *buf, size_t len)
     if (strftime(buf, len, "%Y-%m-%d %H:%M:%S %Z", &timeinfo) == 0) {
         buf[0] = '\0';
     }
-}
-
-const char *clock_get_timezone(void)
-{
-    return timezone;
-}
-
-esp_err_t clock_set_timezone(const char *tz)
-{
-    return clock_set_custom_timezone(tz);
-}
-
-bool clock_get_force_on(void)
-{
-    state_lock_take();
-    bool force = hv_force;
-    state_lock_give();
-    return force;
-}
-
-esp_err_t clock_set_force_on(bool force)
-{
-    state_lock_take();
-    hv_force = force;
-    if (hv_force) {
-        psu_driver_enable();
-        if (timers[2]) {
-            xTimerStop(timers[2], 0);
-        }
-    }
-    state_lock_give();
-    return clock_settings_save();
 }
 
 bool clock_get_presence_enabled(void)
@@ -731,26 +628,7 @@ esp_err_t clock_set_presence_settings(bool enabled, uint16_t minutes)
         }
     }
 
-    if (!presence_enabled || hv_force) {
-        presence_idle_off = false;
-        if (!brightness_zero) {
-            psu_driver_enable();
-        }
-        if (timers[2]) {
-            xTimerStop(timers[2], 0);
-        }
-    } else if (presence_driver_get() == 0 && timers[2]) {
-        xTimerReset(timers[2], 0);
-    }
-    state_lock_give();
-    return clock_settings_save();
-}
-
-esp_err_t clock_set_presence_enabled(bool enabled)
-{
-    state_lock_take();
-    presence_enabled = enabled;
-    if (!presence_enabled || hv_force) {
+    if (!presence_enabled) {
         presence_idle_off = false;
         if (!brightness_zero) {
             psu_driver_enable();
@@ -771,26 +649,6 @@ uint16_t clock_get_idle_minutes(void)
     uint16_t value = idle_minutes;
     state_lock_give();
     return value;
-}
-
-esp_err_t clock_set_idle_minutes(uint16_t minutes)
-{
-    if (minutes < 1) {
-        minutes = 1;
-    } else if (minutes > 240) {
-        minutes = 240;
-    }
-    state_lock_take();
-    idle_minutes = minutes;
-    if (timers[2]) {
-        bool running = xTimerIsTimerActive(timers[2]) != pdFALSE;
-        xTimerChangePeriod(timers[2], pdMS_TO_TICKS((uint32_t)idle_minutes * 60000UL), 0);
-        if (!running) {
-            xTimerStop(timers[2], 0);
-        }
-    }
-    state_lock_give();
-    return clock_settings_save();
 }
 
 uint16_t clock_get_roll_minutes(void)
@@ -818,19 +676,6 @@ uint16_t clock_get_transition_s(void)
     uint16_t value = transition_s;
     state_lock_give();
     return value;
-}
-
-esp_err_t clock_set_transition_s(uint16_t seconds)
-{
-    if (seconds < 1) {
-        seconds = 1;
-    } else if (seconds > 60) {
-        seconds = 60;
-    }
-    state_lock_take();
-    transition_s = seconds;
-    state_lock_give();
-    return clock_settings_save();
 }
 
 void clock_test_brightness_transition(void)
@@ -905,7 +750,7 @@ static void on_sta_got_ip(void)
 static void presence_changed(bool present)
 {
     state_lock_take();
-    if (!presence_enabled || hv_force) {
+    if (!presence_enabled) {
         presence_idle_off = false;
         if (!brightness_zero) {
             psu_driver_enable();
@@ -953,7 +798,7 @@ static void timer_callback(TimerHandle_t timer)
         break;
     case TIMER_NO_MOVEMENT:
         state_lock_take();
-        if (presence_enabled && !hv_force) {
+        if (presence_enabled) {
             presence_idle_off = true;
             psu_driver_disable();
         }
@@ -978,7 +823,7 @@ static void setup_task(void *pvParameters)
     struct tm boot_time;
     local_time(&boot_time);
     clock_apply_brightness(&boot_time);
-    if ((hv_force || !presence_enabled) && !brightness_zero) {
+    if (!presence_enabled && !brightness_zero) {
         psu_driver_enable();
     }
 
@@ -1031,7 +876,7 @@ static void setup_task(void *pvParameters)
 
     xTimerStart(timers[0], 0);
     xTimerStart(timers[1], 0);
-    if (presence_enabled && !hv_force && presence_driver_get() == 0) {
+    if (presence_enabled && presence_driver_get() == 0) {
         ESP_LOGI(TAG, "No presence at init; starting idle timer");
         xTimerStart(timers[2], 0);
     }
