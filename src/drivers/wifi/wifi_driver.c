@@ -207,6 +207,7 @@ static void ensure_wifi_started(wifi_mode_t mode)
 static void ap_stop_task(void *arg)
 {
     (void)arg;
+    wifi_lock_take();
     wifi_sta_list_t clients = {0};
     if (home_joined && ap_running &&
         !(esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0)) {
@@ -215,6 +216,7 @@ static void ap_stop_task(void *arg)
         wifi_mode = WIFI_MODE_STA;
         ESP_LOGI(TAG, "Setup AP stopped after clients left");
     }
+    wifi_lock_give();
     vTaskDelete(NULL);
 }
 
@@ -558,12 +560,16 @@ esp_err_t wifi_driver_start_ap(void)
 esp_err_t wifi_driver_enter_setup_mode(void)
 {
     wifi_lock_take();
+    cancel_ap_shutdown();
+    home_joined = false;
+    joined_once = false;
     want_sta = false;
     sta_connected = false;
     sta_ssid[0] = '\0';
     wifi_retry_num = 0;
     ap_running = true;
     ensure_wifi_started(WIFI_MODE_APSTA);
+    apply_ap_config();
     esp_wifi_disconnect();
     wifi_lock_give();
 
