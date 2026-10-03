@@ -393,7 +393,7 @@ static void start_ramp(int from, int to)
     }
     if (to < 0) {
         to = 0;
-    } else     if (to > 100) {
+    } else if (to > 100) {
         to = 100;
     }
     ramp_hold = false;
