@@ -1,0 +1,25 @@
+---
+description: Build, flash, and open the serial monitor after firmware changes
+alwaysApply: true
+---
+
+# Flash after firmware changes
+
+When a change can alter the flashed app, verify the build, flash the device, then open the serial monitor. Do this before considering the task done.
+
+Applies to edits under `main/`, `src/`, root or `main/CMakeLists.txt`, `Kconfig.projbuild`, and `sdkconfig.defaults`.
+
+Skip it for docs, comments that are not compiled, `.cursor/`, and other files that do not change the binary.
+
+## Steps
+
+1. Build with ESP-IDF. Stop on the first compiler or linker error and fix it.
+2. Flash over UART. Use `idf.port` from `.vscode/settings.json` (`/dev/ttyUSB0` unless that file says otherwise). If the port is busy, stop the process holding it, then flash again.
+3. Treat a failed flash as a failed task. Do not claim the device is updated.
+4. After a successful flash, start `idf.py -p <port> monitor` and leave it running.
+
+```bash
+idf.py build
+idf.py -p /dev/ttyUSB0 flash
+idf.py -p /dev/ttyUSB0 monitor
+```
