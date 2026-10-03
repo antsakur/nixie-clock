@@ -85,9 +85,6 @@ static int ramp_duty;
 static int ramp_duty_goal;
 static uint64_t ramp_step_us;
 static int64_t ramp_next_step_us;
-static char ntp_primary[64] = SNTP_TIME_SERVER;
-static char ntp_backup[64] = SNTP_TIME_SERVER_BACKUP;
-static bool sntp_ready;
 static char timezone[64] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
 static int zone_index = 3;
 static bool dst_enabled = true;
@@ -122,8 +119,6 @@ static esp_err_t clock_settings_save(void)
     CLOCK_NVS_SET(nvs_set_u16(handle, "idle", idle_minutes));
     CLOCK_NVS_SET(nvs_set_u16(handle, "rollm", roll_minutes));
     CLOCK_NVS_SET(nvs_set_u16(handle, "trans", transition_s));
-    CLOCK_NVS_SET(nvs_set_str(handle, "ntp1", ntp_primary));
-    CLOCK_NVS_SET(nvs_set_str(handle, "ntp2", ntp_backup));
     CLOCK_NVS_SET(nvs_set_u8(handle, "zone", zone_index < 0 ? 255 : (uint8_t)zone_index));
     CLOCK_NVS_SET(nvs_set_u8(handle, "dst", dst_enabled ? 1 : 0));
     CLOCK_NVS_SET(nvs_set_str(handle, "tz", timezone));
@@ -193,16 +188,6 @@ static void clock_settings_load(void)
     uint16_t transition = 0;
     if (nvs_get_u16(handle, "trans", &transition) == ESP_OK && transition >= 1 && transition <= 60) {
         transition_s = transition;
-    }
-    size_t name_len = sizeof(ntp_primary);
-    if (nvs_get_str(handle, "ntp1", ntp_primary, &name_len) != ESP_OK || ntp_primary[0] == '\0') {
-        strncpy(ntp_primary, SNTP_TIME_SERVER, sizeof(ntp_primary) - 1);
-        ntp_primary[sizeof(ntp_primary) - 1] = '\0';
-    }
-    name_len = sizeof(ntp_backup);
-    if (nvs_get_str(handle, "ntp2", ntp_backup, &name_len) != ESP_OK || ntp_backup[0] == '\0') {
-        strncpy(ntp_backup, SNTP_TIME_SERVER_BACKUP, sizeof(ntp_backup) - 1);
-        ntp_backup[sizeof(ntp_backup) - 1] = '\0';
     }
     size_t tz_len = sizeof(timezone);
     if (nvs_get_str(handle, "tz", timezone, &tz_len) != ESP_OK || timezone[0] == '\0') {
@@ -716,22 +701,6 @@ esp_err_t clock_set_force_on(bool force)
     return clock_settings_save();
 }
 
-static bool clock_ntp_name_ok(const char *name)
-{
-    if (!name || name[0] == '\0' || strlen(name) >= sizeof(ntp_primary)) {
-        return false;
-    }
-    for (const char *p = name; *p; p++) {
-        char c = *p;
-        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                  (c >= '0' && c <= '9') || c == '.' || c == '-';
-        if (!ok) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool clock_get_presence_enabled(void)
 {
     state_lock_take();
@@ -884,28 +853,12 @@ void clock_test_brightness_transition(void)
 
 const char *clock_get_ntp_primary(void)
 {
-    return ntp_primary;
+    return SNTP_TIME_SERVER;
 }
 
 const char *clock_get_ntp_backup(void)
 {
-    return ntp_backup;
-}
-
-bool clock_set_ntp_servers(const char *primary, const char *backup)
-{
-    if (!clock_ntp_name_ok(primary) || !clock_ntp_name_ok(backup)) {
-        return false;
-    }
-    strncpy(ntp_primary, primary, sizeof(ntp_primary) - 1);
-    ntp_primary[sizeof(ntp_primary) - 1] = '\0';
-    strncpy(ntp_backup, backup, sizeof(ntp_backup) - 1);
-    ntp_backup[sizeof(ntp_backup) - 1] = '\0';
-    if (sntp_ready) {
-        esp_sntp_setservername(0, ntp_primary);
-        esp_sntp_setservername(1, ntp_backup);
-    }
-    return clock_settings_save() == ESP_OK;
+    return SNTP_TIME_SERVER_BACKUP;
 }
 
 static void nvs_init(void)
@@ -1038,12 +991,11 @@ static void setup_task(void *pvParameters)
     display_request_poison(&boot_poison);
 
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(2,
-        ESP_SNTP_SERVER_LIST(ntp_primary, ntp_backup));
+        ESP_SNTP_SERVER_LIST(SNTP_TIME_SERVER, SNTP_TIME_SERVER_BACKUP));
     config.start = false;
     config.sync_cb = time_sync_notification_cb;
     esp_netif_sntp_init(&config);
-    sntp_ready = true;
-    ESP_LOGI(TAG, "SNTP servers: %s, %s", ntp_primary, ntp_backup);
+    ESP_LOGI(TAG, "SNTP servers: %s, %s", SNTP_TIME_SERVER, SNTP_TIME_SERVER_BACKUP);
 
     wifi_driver_init();
     wifi_driver_set_got_ip_cb(on_sta_got_ip);

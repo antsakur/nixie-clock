@@ -51,4 +51,3 @@ uint16_t clock_get_roll_minutes(void);
 esp_err_t clock_set_roll_minutes(uint16_t minutes);
 const char *clock_get_ntp_primary(void);
 const char *clock_get_ntp_backup(void);
-bool clock_set_ntp_servers(const char *primary, const char *backup);
