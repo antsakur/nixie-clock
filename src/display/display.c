@@ -210,6 +210,27 @@ void display_get_poison(display_poison_cfg_t *out)
     xSemaphoreGive(settings_lock);
 }
 
+esp_err_t display_set_settings(const display_settings_t *settings)
+{
+    if (!settings) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    xSemaphoreTake(settings_lock, portMAX_DELAY);
+    poison_cfg = settings->poison;
+    random_cfg = settings->random;
+    fade_enabled = settings->fade_enabled;
+    if (fade_enabled) {
+        fade_ms = settings->fade_ms;
+    }
+    sanitize_poison(&poison_cfg);
+    sanitize_random(&random_cfg);
+    fade_ms = sanitize_fade(fade_ms);
+    esp_err_t err = settings_save_unlocked();
+    xSemaphoreGive(settings_lock);
+    return err;
+}
+
 esp_err_t display_set_poison(const display_poison_cfg_t *cfg)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);

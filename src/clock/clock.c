@@ -480,13 +480,41 @@ static void clock_apply_brightness(const struct tm *timeinfo)
     state_lock_give();
 }
 
-static esp_err_t clock_brightness_changed(void)
+static void clock_brightness_changed_locked(void)
 {
     struct tm timeinfo;
     local_time(&timeinfo);
-    state_lock_take();
     ramp_test = false;
     clock_follow_brightness(&timeinfo);
+}
+
+static esp_err_t clock_brightness_changed(void)
+{
+    state_lock_take();
+    clock_brightness_changed_locked();
+    state_lock_give();
+    return clock_settings_save();
+}
+
+esp_err_t clock_set_brightness_settings(const clock_brightness_settings_t *settings)
+{
+    if (!settings) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    state_lock_take();
+    day_brightness = settings->day_brightness > 100 ? 100 : settings->day_brightness;
+    night_brightness = settings->night_brightness > 100 ? 100 : settings->night_brightness;
+    night_enabled = settings->night_enabled;
+    night_start = settings->night_start > 23 ? 23 : settings->night_start;
+    night_end = settings->night_end > 23 ? 23 : settings->night_end;
+    transition_s = settings->transition_s;
+    if (transition_s < 1) {
+        transition_s = 1;
+    } else if (transition_s > 60) {
+        transition_s = 60;
+    }
+    clock_brightness_changed_locked();
     state_lock_give();
     return clock_settings_save();
 }
@@ -710,6 +738,43 @@ bool clock_get_presence_enabled(void)
     bool enabled = presence_enabled;
     state_lock_give();
     return enabled;
+}
+
+esp_err_t clock_set_presence_settings(bool enabled, uint16_t minutes)
+{
+    if (minutes < 1) {
+        minutes = 1;
+    } else if (minutes > 240) {
+        minutes = 240;
+    }
+
+    state_lock_take();
+    presence_enabled = enabled;
+    if (enabled) {
+        idle_minutes = minutes;
+        if (timers[2]) {
+            bool running = xTimerIsTimerActive(timers[2]) != pdFALSE;
+            xTimerChangePeriod(timers[2],
+                               pdMS_TO_TICKS((uint32_t)idle_minutes * 60000UL), 0);
+            if (!running) {
+                xTimerStop(timers[2], 0);
+            }
+        }
+    }
+
+    if (!presence_enabled || hv_force) {
+        presence_idle_off = false;
+        if (!brightness_zero) {
+            psu_driver_enable();
+        }
+        if (timers[2]) {
+            xTimerStop(timers[2], 0);
+        }
+    } else if (presence_driver_get() == 0 && timers[2]) {
+        xTimerReset(timers[2], 0);
+    }
+    state_lock_give();
+    return clock_settings_save();
 }
 
 esp_err_t clock_set_presence_enabled(bool enabled)

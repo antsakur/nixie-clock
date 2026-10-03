@@ -18,8 +18,16 @@ typedef struct {
     int32_t run_duration_ms;
 } display_random_cfg_t;
 
+typedef struct {
+    display_poison_cfg_t poison;
+    display_random_cfg_t random;
+    int32_t fade_ms;
+    bool fade_enabled;
+} display_settings_t;
+
 void display_init(void);
 void display_settings_load(void);
+esp_err_t display_set_settings(const display_settings_t *settings);
 void display_set_brightness(uint32_t percent);
 void display_set_brightness_counts(uint32_t duty);
 void display_clear(void);

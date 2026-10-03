@@ -6,7 +6,17 @@
 
 #include "esp_err.h"
 
+typedef struct {
+    uint8_t day_brightness;
+    uint8_t night_brightness;
+    bool night_enabled;
+    uint8_t night_start;
+    uint8_t night_end;
+    uint16_t transition_s;
+} clock_brightness_settings_t;
+
 void clock_start(void);
+esp_err_t clock_set_brightness_settings(const clock_brightness_settings_t *settings);
 uint8_t clock_get_brightness(void);
 esp_err_t clock_set_brightness(uint8_t percent);
 uint8_t clock_get_night_brightness(void);
@@ -30,6 +40,7 @@ void clock_format_now(char *buf, size_t len);
 bool clock_get_force_on(void);
 esp_err_t clock_set_force_on(bool force);
 bool clock_get_presence_enabled(void);
+esp_err_t clock_set_presence_settings(bool enabled, uint16_t idle_minutes);
 esp_err_t clock_set_presence_enabled(bool enabled);
 uint16_t clock_get_idle_minutes(void);
 esp_err_t clock_set_idle_minutes(uint16_t minutes);

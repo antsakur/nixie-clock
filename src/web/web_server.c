@@ -740,14 +740,15 @@ static esp_err_t config_post_handler(httpd_req_t *req)
             error = "Brightness transition must be 1–60 seconds.";
         } else {
             save_section = "Brightness";
-            record_save_error(&save_err, clock_set_brightness((uint8_t)day_v));
-            record_save_error(&save_err, clock_set_night_brightness((uint8_t)night_v));
-            record_save_error(&save_err, clock_set_night_enabled(night_enabled_form));
-            if (night_enabled_form) {
-                record_save_error(&save_err,
-                                  clock_set_night_hours((uint8_t)start_v, (uint8_t)end_v));
-            }
-            record_save_error(&save_err, clock_set_transition_s((uint16_t)trans_v));
+            clock_brightness_settings_t settings = {
+                .day_brightness = (uint8_t)day_v,
+                .night_brightness = (uint8_t)night_v,
+                .night_enabled = night_enabled_form,
+                .night_start = night_enabled_form ? (uint8_t)start_v : clock_get_night_start(),
+                .night_end = night_enabled_form ? (uint8_t)end_v : clock_get_night_end(),
+                .transition_s = (uint16_t)trans_v,
+            };
+            record_save_error(&save_err, clock_set_brightness_settings(&settings));
             if (save_err == ESP_OK && strcmp(action, "trans_test") == 0) {
                 clock_test_brightness_transition();
             }
@@ -762,10 +763,9 @@ static esp_err_t config_post_handler(httpd_req_t *req)
             error = "Turn off after must be 1–240 minutes.";
         } else {
             save_section = "Presence";
-            record_save_error(&save_err, clock_set_presence_enabled(presence_on));
-            if (presence_on) {
-                record_save_error(&save_err, clock_set_idle_minutes((uint16_t)idle_v));
-            }
+            uint16_t idle_setting = presence_on ? (uint16_t)idle_v : clock_get_idle_minutes();
+            record_save_error(&save_err,
+                              clock_set_presence_settings(presence_on, idle_setting));
         }
     } else if (strcmp(menu, "time") == 0) {
         char zone[16];
@@ -833,23 +833,22 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         } else if (!random_infinite && (r_run[0] == '\0' || random_seconds < 0 || random_seconds > 2000000)) {
             error = "Random run time must be 0 seconds or more.";
         } else {
-            display_poison_cfg_t poison = {
-                .digit_duration_ms = poison_digit,
-                .run_duration_ms = poison_run,
-                .offset = (uint8_t)poison_offset,
-                .inverse_direction = form_value(body, "p_inv", p_inv, sizeof(p_inv)),
-            };
-            display_random_cfg_t random_cfg = {
-                .digit_duration_ms = random_digit,
-                .run_duration_ms = random_run,
+            display_settings_t settings = {
+                .poison = {
+                    .digit_duration_ms = poison_digit,
+                    .run_duration_ms = poison_run,
+                    .offset = (uint8_t)poison_offset,
+                    .inverse_direction = form_value(body, "p_inv", p_inv, sizeof(p_inv)),
+                },
+                .random = {
+                    .digit_duration_ms = random_digit,
+                    .run_duration_ms = random_run,
+                },
+                .fade_ms = fade_ms,
+                .fade_enabled = fade_on,
             };
             save_section = "Display";
-            record_save_error(&save_err, display_set_poison(&poison));
-            record_save_error(&save_err, display_set_random(&random_cfg));
-            record_save_error(&save_err, display_set_fade_enabled(fade_on));
-            if (fade_on) {
-                record_save_error(&save_err, display_set_fade_ms(fade_ms));
-            }
+            record_save_error(&save_err, display_set_settings(&settings));
             record_save_error(&save_err, clock_set_roll_minutes((uint16_t)roll_min));
         }
     }
