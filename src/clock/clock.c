@@ -29,7 +29,7 @@
 static const char *TAG = "Clock";
 static const char *CLOCK_TZ_DEFAULT = "EET-2EEST,M3.5.0/3,M10.5.0/4";
 #define CLOCK_BRIGHT_DEFAULT 80
-#define CLOCK_NIGHT_DEFAULT 20
+#define CLOCK_NIGHT_DEFAULT 60
 
 typedef struct {
     const char *id;
@@ -59,7 +59,7 @@ static TimerHandle_t timers[3];
 static SemaphoreHandle_t state_lock;
 static uint8_t day_brightness = CLOCK_BRIGHT_DEFAULT;
 static uint8_t night_brightness = CLOCK_NIGHT_DEFAULT;
-static bool night_enabled = true;
+static bool night_enabled = false;
 static uint8_t night_start = 23;
 static uint8_t night_end = 7;
 static uint32_t applied_brightness = 0xFFFFFFFF;
