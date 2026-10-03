@@ -12,27 +12,20 @@ ESP-IDF v6.x, target `esp32c6`.
 
 ```bash
 idf.py set-target esp32c6
-idf.py menuconfig   # User Configuration: board, NTP, main vs test
+idf.py menuconfig   # User Configuration: board and SNTP servers
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 ## Wi-Fi setup
 
-Credentials are entered after boot, not at compile time, and are stored in NVS.
+Credentials are entered after boot and stored in NVS. They are not compile-time settings.
 
-1. On first boot (or if join fails), the clock opens a setup network named `NixieClock-XXXX`.
-2. Join it from a phone and open `http://nixie.local/` (or `http://192.168.4.1/` if the name does not resolve).
-3. Enter home SSID and password, then Save.
-4. After the clock joins your network, open `http://nixie.local/` again. The same name works on both networks.
-5. On the status page, **Forget Wi-Fi** clears flash and returns to the setup AP.
-
-## Program selection
-
-In menuconfig, **User Configuration → Program selection**:
-
-- **Main program** — clock: Wi-Fi, NTP, occupancy, web status, anti-poisoning roll
-- **Test program** — walks all digits in a loop (no Wi-Fi)
+1. On first boot, or after a join failure, the clock opens a setup network named `NixieClock-XXXX`.
+2. Join it and open `http://nixie.local/` (or `http://192.168.4.1/` if the name does not resolve).
+3. Enter the home SSID and password, then press **Join**.
+4. The page tells you to join that home network. Open `http://nixie.local/` there for the configuration page. The same name works on both networks.
+5. Under **Network**, **Forget current network** clears the saved credentials and returns to the setup AP.
 
 ## Hardware
 
@@ -46,4 +39,4 @@ ESP32-C6 DevKitM-1 vs DevKitC-1 (module, flash, pinout): [docs/esp32-c6-devkits.
 | `src/clock/` | Setup, timers, occupancy policy |
 | `src/display/` | Digit encoding, show time, roll, waiting animation |
 | `src/drivers/` | PSU, PWM (OE), shift registers, presence GPIO, Wi-Fi |
-| `src/web/` | HTTP status page |
+| `src/web/` | HTTP setup and configuration pages |

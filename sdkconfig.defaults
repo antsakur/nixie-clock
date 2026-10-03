@@ -1,5 +1,5 @@
-# Committed defaults. Keep secrets out of git: override Wi-Fi in a local sdkconfig
-# (gitignored) or via idf.py menuconfig.
+# Committed defaults. Wi-Fi credentials are stored in NVS at runtime.
+# Change the board and SNTP servers here or with idf.py menuconfig.
 
 CONFIG_IDF_TARGET="esp32c6"
 CONFIG_FREERTOS_HZ=1000
@@ -7,18 +7,11 @@ CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP32_C6_WROOM_1=y
 # CONFIG_ESP32_C6_MINI_1 is not set
 
-CONFIG_ESP_WIFI_SSID="myssid"
-CONFIG_ESP_WIFI_PASSWORD="mypassword"
 CONFIG_ESP_MAXIMUM_RETRY=5
-CONFIG_ESP_WIFI_AUTH_WPA2_PSK=y
-CONFIG_ESP_WPA3_SAE_PWE_BOTH=y
 
 CONFIG_SNTP_TIME_SERVER="pool.ntp.org"
 CONFIG_SNTP_TIME_SERVER_BACKUP="time.google.com"
 CONFIG_LWIP_SNTP_MAX_SERVERS=2
-
-CONFIG_BUILD_MAIN_PROGRAM=y
-# CONFIG_BUILD_TEST_PROGRAM is not set
 
 # Wi-Fi + HTTP push the app past the default 1MB factory partition.
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
