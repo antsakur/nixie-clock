@@ -2,6 +2,7 @@
 # (gitignored) or via idf.py menuconfig.
 
 CONFIG_IDF_TARGET="esp32c6"
+CONFIG_FREERTOS_HZ=1000
 
 CONFIG_ESP32_C6_WROOM_1=y
 # CONFIG_ESP32_C6_MINI_1 is not set

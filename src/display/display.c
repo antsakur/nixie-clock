@@ -7,6 +7,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_timer.h"
 #include "nvs.h"
 
 #include "defines.h"
@@ -60,7 +61,7 @@ static display_random_cfg_t random_cfg = {
     .digit_duration_ms = 200,
     .run_duration_ms = -1,
 };
-static int32_t fade_ms = 200;
+static int32_t fade_ms = 500;
 static bool fade_enabled = true;
 
 static int symbols[TUBE_COUNT];
@@ -316,20 +317,37 @@ static void current_digits(int out[TUBE_COUNT])
     out[3] = timeinfo.tm_hour / 10;
 }
 
-static bool wait_for_command(int ms, display_msg_t *msg)
+static bool wait_until_command(int64_t deadline_us, display_msg_t *msg)
 {
     if (command_pending) {
         *msg = pending_command;
         command_pending = false;
         return true;
     }
+
+    for (;;) {
+        int64_t remaining_us = deadline_us - esp_timer_get_time();
+        if (remaining_us <= 0) {
+            return false;
+        }
+
+        uint64_t remaining_ms = ((uint64_t)remaining_us + 999ULL) / 1000ULL;
+        TickType_t wait_ticks = pdMS_TO_TICKS(remaining_ms);
+        if (wait_ticks < 1) {
+            wait_ticks = 1;
+        }
+        if (xQueueReceive(command_queue, msg, wait_ticks) == pdTRUE) {
+            return true;
+        }
+    }
+}
+
+static bool wait_for_command(int ms, display_msg_t *msg)
+{
     if (ms < 1) {
         ms = 1;
     }
-    if (xQueueReceive(command_queue, msg, pdMS_TO_TICKS(ms)) == pdTRUE) {
-        return true;
-    }
-    return false;
+    return wait_until_command(esp_timer_get_time() + (int64_t)ms * 1000, msg);
 }
 
 static void hold_pending(const display_msg_t *msg)
@@ -348,30 +366,58 @@ static void show_digits(const int digits[TUBE_COUNT])
 static bool crossfade(const int previous[TUBE_COUNT], const int next[TUBE_COUNT])
 {
     int shown[TUBE_COUNT];
+    int rendered[TUBE_COUNT];
     int32_t duration;
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     duration = fade_ms;
     xSemaphoreGive(settings_lock);
-    int levels = duration >= 50 ? 50 : (duration > 0 ? duration : 1);
-    int level_ms = duration / levels;
-    if (level_ms < 1) {
-        level_ms = 1;
-    }
+
     shown_mode = MODE_FADE;
-    for (int level = 0; level < levels; level++) {
-        int on_ms = (levels == 1) ? level_ms : (level_ms * level) / (levels - 1);
-        for (int ms = 0; ms < level_ms; ms++) {
-            display_msg_t msg;
-            bool slot_next = ms < on_ms;
-            for (int tube = 0; tube < TUBE_COUNT; tube++) {
-                shown[tube] = (previous[tube] == next[tube] || slot_next) ? next[tube] : previous[tube];
-            }
+    memcpy(rendered, previous, sizeof(rendered));
+
+    int64_t start_us = esp_timer_get_time();
+    int64_t duration_us = (int64_t)(duration > 0 ? duration : 1) * 1000;
+    int64_t end_us = start_us + duration_us;
+    int64_t next_slot_us = start_us;
+    uint32_t mix_accumulator = 0;
+
+    while (next_slot_us < end_us) {
+        next_slot_us += 1000;
+        if (next_slot_us > end_us) {
+            next_slot_us = end_us;
+        }
+
+        display_msg_t msg;
+        if (wait_until_command(next_slot_us, &msg)) {
+            memcpy(symbols, rendered, sizeof(symbols));
+            hold_pending(&msg);
+            return false;
+        }
+
+        int64_t now_us = esp_timer_get_time();
+        int64_t elapsed_us = now_us - start_us;
+        if (elapsed_us >= duration_us) {
+            break;
+        }
+
+        uint32_t next_weight = (uint32_t)(((uint64_t)elapsed_us << 16) / (uint64_t)duration_us);
+        mix_accumulator += next_weight;
+        bool slot_next = mix_accumulator >= (1u << 16);
+        if (slot_next) {
+            mix_accumulator -= (1u << 16);
+        }
+
+        for (int tube = 0; tube < TUBE_COUNT; tube++) {
+            shown[tube] = (previous[tube] == next[tube] || slot_next) ? next[tube] : previous[tube];
+        }
+        if (memcmp(shown, rendered, sizeof(shown)) != 0) {
             render_symbols(shown);
-            if (wait_for_command(1, &msg)) {
-                memcpy(symbols, shown, sizeof(symbols));
-                hold_pending(&msg);
-                return false;
-            }
+            memcpy(rendered, shown, sizeof(rendered));
+        }
+
+        int64_t after_render_us = esp_timer_get_time();
+        if (after_render_us - next_slot_us >= 1000) {
+            next_slot_us = after_render_us;
         }
     }
     memcpy(symbols, next, sizeof(symbols));
