@@ -502,13 +502,17 @@ static void provision_task(void *arg)
     esp_err_t join = wifi_driver_provision(provision_job.ssid, provision_job.pass,
                                            provision_job.allow_hidden, err, sizeof(err));
     if (join == ESP_OK) {
-        if (wifi_store_save(provision_job.ssid, provision_job.pass) == ESP_OK) {
+        esp_err_t save = wifi_store_save(provision_job.ssid, provision_job.pass);
+        if (save == ESP_OK) {
             setup_notice[0] = '\0';
             setup_notice_is_error = false;
             wifi_driver_provision_commit();
         } else {
-            strncpy(setup_notice, "Joined, but saving the network failed.", sizeof(setup_notice) - 1);
+            snprintf(setup_notice, sizeof(setup_notice),
+                     "Joined, but saving the network failed (%s). Please try again.",
+                     esp_err_to_name(save));
             setup_notice_is_error = true;
+            wifi_driver_enter_setup_mode();
         }
     } else {
         strncpy(setup_notice, err[0] ? err : "Could not join that network.", sizeof(setup_notice) - 1);
@@ -525,13 +529,13 @@ static esp_err_t root_get_handler(httpd_req_t *req)
     int len;
     if (provision_busy) {
         len = setup_page(resp, sizeof(resp), "Joining…", false, 2);
+    } else if (setup_notice[0]) {
+        len = setup_page(resp, sizeof(resp), setup_notice, setup_notice_is_error, 0);
     } else if (wifi_driver_sta_connected()) {
         char menu[16];
         config_menu_name(req, menu, sizeof(menu));
         len = request_on_setup_ap(req) ? joined_page(resp, sizeof(resp))
                                        : config_page(resp, sizeof(resp), menu, NULL, false);
-    } else if (setup_notice[0]) {
-        len = setup_page(resp, sizeof(resp), setup_notice, setup_notice_is_error, 0);
     } else {
         len = setup_page(resp, sizeof(resp), NULL, false, 0);
     }
@@ -541,10 +545,10 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
 static esp_err_t wifi_post_handler(httpd_req_t *req)
 {
-    if (wifi_driver_sta_connected() && !provision_busy) {
+    bool on_setup_ap = request_on_setup_ap(req);
+    if (wifi_driver_sta_connected() && !provision_busy && !on_setup_ap) {
         char resp[6144];
-        int len = request_on_setup_ap(req) ? joined_page(resp, sizeof(resp))
-                                           : config_page(resp, sizeof(resp), "display", NULL, false);
+        int len = config_page(resp, sizeof(resp), "display", NULL, false);
         send_html(req, resp, len);
         return ESP_OK;
     }

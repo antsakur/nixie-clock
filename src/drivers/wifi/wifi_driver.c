@@ -565,6 +565,9 @@ esp_err_t wifi_driver_enter_setup_mode(void)
     joined_once = false;
     want_sta = false;
     sta_connected = false;
+    probing = false;
+    probe_armed = false;
+    xEventGroupClearBits(probe_events, PROBE_OK_BIT | PROBE_FAIL_BIT);
     sta_ssid[0] = '\0';
     wifi_retry_num = 0;
     ap_running = true;
