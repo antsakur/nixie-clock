@@ -37,11 +37,40 @@ typedef struct {
 
 static provision_job_t provision_job;
 
+#define FORM_RECV_MAX_TIMEOUTS 3
+
 static void record_save_error(esp_err_t *result, esp_err_t err)
 {
     if (*result == ESP_OK && err != ESP_OK) {
         *result = err;
     }
+}
+
+static esp_err_t receive_form_body(httpd_req_t *req, char *body, size_t body_len)
+{
+    int total = req->content_len;
+    if (total <= 0 || (size_t)total >= body_len) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    int off = 0;
+    int timeouts = 0;
+    while (off < total) {
+        int n = httpd_req_recv(req, body + off, total - off);
+        if (n == HTTPD_SOCK_ERR_TIMEOUT) {
+            if (++timeouts >= FORM_RECV_MAX_TIMEOUTS) {
+                return ESP_ERR_TIMEOUT;
+            }
+            continue;
+        }
+        if (n <= 0) {
+            return ESP_FAIL;
+        }
+        off += n;
+        timeouts = 0;
+    }
+    body[off] = '\0';
+    return ESP_OK;
 }
 
 static int hex_val(char c)
@@ -554,27 +583,23 @@ static esp_err_t wifi_post_handler(httpd_req_t *req)
     }
 
     char body[512];
-    int total = req->content_len;
-    if (total <= 0 || total >= (int)sizeof(body)) {
+    esp_err_t receive = receive_form_body(req, body, sizeof(body));
+    if (receive == ESP_ERR_INVALID_SIZE) {
         char resp[6144];
         int len = setup_page(resp, sizeof(resp), "Form was empty or too large.", true, 0);
         send_html(req, resp, len);
         return ESP_OK;
     }
-
-    int off = 0;
-    while (off < total) {
-        int n = httpd_req_recv(req, body + off, total - off);
-        if (n == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
-        }
-        if (n <= 0) {
-            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Incomplete form");
-            return ESP_FAIL;
-        }
-        off += n;
+    if (receive == ESP_ERR_TIMEOUT) {
+        char resp[6144];
+        int len = setup_page(resp, sizeof(resp), "Timed out while receiving the form.", true, 0);
+        send_html(req, resp, len);
+        return ESP_OK;
     }
-    body[off] = '\0';
+    if (receive != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Incomplete form");
+        return ESP_FAIL;
+    }
 
     char ssid[80];
     char pass[80];
@@ -635,30 +660,28 @@ static esp_err_t config_post_handler(httpd_req_t *req)
     }
 
     char body[768];
-    int total = req->content_len;
     char menu[16] = "display";
-    if (total <= 0 || total >= (int)sizeof(body)) {
+    esp_err_t receive = receive_form_body(req, body, sizeof(body));
+    if (receive == ESP_ERR_INVALID_SIZE) {
         display_request_save_result(false, DISPLAY_AFTER_NONE);
         char resp[6144];
         int len = config_page(resp, sizeof(resp), menu, "The form was empty or too large.", true);
         send_html(req, resp, len);
         return ESP_OK;
     }
-
-    int off = 0;
-    while (off < total) {
-        int n = httpd_req_recv(req, body + off, total - off);
-        if (n == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
-        }
-        if (n <= 0) {
-            display_request_save_result(false, DISPLAY_AFTER_NONE);
-            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Incomplete form");
-            return ESP_FAIL;
-        }
-        off += n;
+    if (receive == ESP_ERR_TIMEOUT) {
+        display_request_save_result(false, DISPLAY_AFTER_NONE);
+        char resp[6144];
+        int len = config_page(resp, sizeof(resp), menu,
+                              "Timed out while receiving the form.", true);
+        send_html(req, resp, len);
+        return ESP_OK;
     }
-    body[off] = '\0';
+    if (receive != ESP_OK) {
+        display_request_save_result(false, DISPLAY_AFTER_NONE);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Incomplete form");
+        return ESP_FAIL;
+    }
 
     char action[16];
     if (!form_value(body, "menu", menu, sizeof(menu))) {
