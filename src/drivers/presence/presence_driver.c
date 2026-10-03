@@ -5,12 +5,12 @@
 #include "esp_log.h"
 
 #include "defines.h"
-#include "gpio_driver.h"
+#include "presence_driver.h"
 
-static const char *TAG = "GPIO";
+static const char *TAG = "Presence";
 
 static QueueHandle_t presence_queue;
-static gpio_presence_cb_t presence_cb;
+static presence_cb_t presence_cb;
 
 static void IRAM_ATTR presence_isr(void *arg)
 {
@@ -46,7 +46,7 @@ static void presence_task(void *arg)
     }
 }
 
-void gpio_driver_init(void)
+void presence_driver_init(void)
 {
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << GPIO_PRESENCE_SENSOR),
@@ -59,7 +59,7 @@ void gpio_driver_init(void)
     ESP_LOGI(TAG, "Presence sensor on GPIO%d", GPIO_PRESENCE_SENSOR);
 }
 
-void gpio_driver_presence_start(gpio_presence_cb_t callback)
+void presence_driver_start(presence_cb_t callback)
 {
     presence_cb = callback;
     presence_queue = xQueueCreate(4, sizeof(int32_t));
@@ -70,7 +70,7 @@ void gpio_driver_presence_start(gpio_presence_cb_t callback)
     xTaskCreate(presence_task, "presence", 2048, NULL, 10, NULL);
 }
 
-int gpio_driver_presence_get(void)
+int presence_driver_get(void)
 {
     return gpio_get_level(GPIO_PRESENCE_SENSOR);
 }

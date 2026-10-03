@@ -47,3 +47,12 @@ void pwm_driver_set_duty(uint32_t duty_cycle_percent)
 
     ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty, 0));
 }
+
+void pwm_driver_set_duty_counts(uint32_t duty)
+{
+    const uint32_t max_duty = (1u << PWM_RESOLUTION_BITS) - 1u;
+    if (duty > max_duty) {
+        duty = max_duty;
+    }
+    ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty, 0));
+}

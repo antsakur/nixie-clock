@@ -16,10 +16,10 @@ static uint8_t CLK_DATA[6];
 static uint8_t serial_data[6];
 static SemaphoreHandle_t write_mutex;
 
-static rmt_channel_handle_t SRDATA_channel = NULL;
-static rmt_tx_channel_config_t SRDATA_channel_config = {
+static rmt_channel_handle_t SHIFT_REG_DATA_channel = NULL;
+static rmt_tx_channel_config_t SHIFT_REG_DATA_channel_config = {
     .clk_src = RMT_CLK_SRC_DEFAULT,
-    .gpio_num = GPIO_SRDATA,
+    .gpio_num = GPIO_SHIFT_REG_DATA,
     .mem_block_symbols = 48,
     .resolution_hz = RMT_RESOLUTION_HZ,
     .trans_queue_depth = 1,
@@ -27,10 +27,10 @@ static rmt_tx_channel_config_t SRDATA_channel_config = {
     .flags.with_dma = false,
 };
 
-static rmt_channel_handle_t SRCLK_channel = NULL;
-static rmt_tx_channel_config_t SRCLK_channel_config = {
+static rmt_channel_handle_t SHIFT_REG_CLOCK_channel = NULL;
+static rmt_tx_channel_config_t SHIFT_REG_CLOCK_channel_config = {
     .clk_src = RMT_CLK_SRC_DEFAULT,
-    .gpio_num = GPIO_SRCLK,
+    .gpio_num = GPIO_SHIFT_REG_CLOCK,
     .mem_block_symbols = 48,
     .resolution_hz = RMT_RESOLUTION_HZ,
     .trans_queue_depth = 1,
@@ -38,8 +38,8 @@ static rmt_tx_channel_config_t SRCLK_channel_config = {
     .flags.with_dma = false,
 };
 
-static rmt_encoder_handle_t SRDATA_encoder = NULL;
-static rmt_bytes_encoder_config_t SRDATA_encoder_config = {
+static rmt_encoder_handle_t SHIFT_REG_DATA_encoder = NULL;
+static rmt_bytes_encoder_config_t SHIFT_REG_DATA_encoder_config = {
     .bit0 = {
         .level0 = 0,
         .duration0 = 2,
@@ -55,8 +55,8 @@ static rmt_bytes_encoder_config_t SRDATA_encoder_config = {
     .flags.msb_first = 0,
 };
 
-static rmt_encoder_handle_t SRCLK_encoder = NULL;
-static rmt_bytes_encoder_config_t SRCLK_encoder_config = {
+static rmt_encoder_handle_t SHIFT_REG_CLOCK_encoder = NULL;
+static rmt_bytes_encoder_config_t SHIFT_REG_CLOCK_encoder_config = {
     .bit0 = {
         .level0 = 0,
         .duration0 = 1,
@@ -72,12 +72,12 @@ static rmt_bytes_encoder_config_t SRCLK_encoder_config = {
     .flags.msb_first = 0,
 };
 
-static rmt_transmit_config_t SRDATA_transmit_config = {
+static rmt_transmit_config_t SHIFT_REG_DATA_transmit_config = {
     .loop_count = 0,
     .flags.eot_level = 0,
 };
 
-static rmt_transmit_config_t SRCLK_transmit_config = {
+static rmt_transmit_config_t SHIFT_REG_CLOCK_transmit_config = {
     .loop_count = 0,
     .flags.eot_level = 0,
 };
@@ -91,17 +91,17 @@ static void shift_reg_transmit(uint64_t data)
     }
 
     ESP_ERROR_CHECK(rmt_sync_reset(synchro));
-    ESP_ERROR_CHECK(rmt_transmit(SRCLK_channel, SRCLK_encoder, CLK_DATA, sizeof(CLK_DATA),
-                                 &SRCLK_transmit_config));
-    ESP_ERROR_CHECK(rmt_transmit(SRDATA_channel, SRDATA_encoder, serial_data, sizeof(serial_data),
-                                 &SRDATA_transmit_config));
+    ESP_ERROR_CHECK(rmt_transmit(SHIFT_REG_CLOCK_channel, SHIFT_REG_CLOCK_encoder, CLK_DATA, sizeof(CLK_DATA),
+                                 &SHIFT_REG_CLOCK_transmit_config));
+    ESP_ERROR_CHECK(rmt_transmit(SHIFT_REG_DATA_channel, SHIFT_REG_DATA_encoder, serial_data, sizeof(serial_data),
+                                 &SHIFT_REG_DATA_transmit_config));
 
-    ESP_ERROR_CHECK(rmt_tx_wait_all_done(SRDATA_channel, portMAX_DELAY));
-    ESP_ERROR_CHECK(rmt_tx_wait_all_done(SRCLK_channel, portMAX_DELAY));
+    ESP_ERROR_CHECK(rmt_tx_wait_all_done(SHIFT_REG_DATA_channel, portMAX_DELAY));
+    ESP_ERROR_CHECK(rmt_tx_wait_all_done(SHIFT_REG_CLOCK_channel, portMAX_DELAY));
 
-    gpio_set_level(GPIO_RCLK, 0);
+    gpio_set_level(GPIO_SHIFT_REG_LATCH, 0);
     esp_rom_delay_us(10);
-    gpio_set_level(GPIO_RCLK, 1);
+    gpio_set_level(GPIO_SHIFT_REG_LATCH, 1);
 }
 
 void shift_reg_driver_init(void)
@@ -111,23 +111,23 @@ void shift_reg_driver_init(void)
     configASSERT(write_mutex);
 
     gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << GPIO_RCLK),
+        .pin_bit_mask = (1ULL << GPIO_SHIFT_REG_LATCH),
         .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
     };
     gpio_config(&io_conf);
-    gpio_set_level(GPIO_RCLK, 0);
+    gpio_set_level(GPIO_SHIFT_REG_LATCH, 0);
 
-    ESP_ERROR_CHECK(rmt_new_tx_channel(&SRDATA_channel_config, &SRDATA_channel));
-    ESP_ERROR_CHECK(rmt_new_tx_channel(&SRCLK_channel_config, &SRCLK_channel));
-    ESP_ERROR_CHECK(rmt_new_bytes_encoder(&SRDATA_encoder_config, &SRDATA_encoder));
-    ESP_ERROR_CHECK(rmt_new_bytes_encoder(&SRCLK_encoder_config, &SRCLK_encoder));
-    ESP_ERROR_CHECK(rmt_enable(SRDATA_channel));
-    ESP_ERROR_CHECK(rmt_enable(SRCLK_channel));
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&SHIFT_REG_DATA_channel_config, &SHIFT_REG_DATA_channel));
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&SHIFT_REG_CLOCK_channel_config, &SHIFT_REG_CLOCK_channel));
+    ESP_ERROR_CHECK(rmt_new_bytes_encoder(&SHIFT_REG_DATA_encoder_config, &SHIFT_REG_DATA_encoder));
+    ESP_ERROR_CHECK(rmt_new_bytes_encoder(&SHIFT_REG_CLOCK_encoder_config, &SHIFT_REG_CLOCK_encoder));
+    ESP_ERROR_CHECK(rmt_enable(SHIFT_REG_DATA_channel));
+    ESP_ERROR_CHECK(rmt_enable(SHIFT_REG_CLOCK_channel));
 
-    rmt_channel_handle_t channels[2] = {SRDATA_channel, SRCLK_channel};
+    rmt_channel_handle_t channels[2] = {SHIFT_REG_DATA_channel, SHIFT_REG_CLOCK_channel};
     rmt_sync_manager_config_t synchro_config = {
         .tx_channel_array = channels,
         .array_size = sizeof(channels) / sizeof(channels[0]),
@@ -136,7 +136,7 @@ void shift_reg_driver_init(void)
 
     shift_reg_transmit(0);
 
-    ESP_LOGI(TAG, "Shift register driver initialized (RMT + latch on GPIO%d)", GPIO_RCLK);
+    ESP_LOGI(TAG, "Shift register driver initialized (RMT + latch on GPIO%d)", GPIO_SHIFT_REG_LATCH);
 }
 
 void shift_reg_driver_write(uint64_t data)

@@ -7,8 +7,9 @@ idf_component_register(
         "../src/drivers/psu/psu_driver.c"
         "../src/drivers/pwm/pwm_driver.c"
         "../src/drivers/shift_reg/shift_reg_driver.c"
-        "../src/drivers/gpio/gpio_driver.c"
+        "../src/drivers/presence/presence_driver.c"
         "../src/drivers/wifi/wifi_driver.c"
+        "../src/drivers/wifi/wifi_store.c"
     INCLUDE_DIRS
         "."
         "../src"
@@ -18,7 +19,7 @@ idf_component_register(
         "../src/drivers/psu"
         "../src/drivers/pwm"
         "../src/drivers/shift_reg"
-        "../src/drivers/gpio"
+        "../src/drivers/presence"
         "../src/drivers/wifi"
     REQUIRES
         nvs_flash
@@ -26,9 +27,12 @@ idf_component_register(
         esp_event
         esp_netif
         esp_http_server
+        mdns
         driver
         esp_driver_gpio
         esp_driver_ledc
         esp_driver_rmt
         esp_rom
+        esp_app_format
+        esp_timer
 )

@@ -77,20 +77,14 @@ menu "User Configuration"
 
     config SNTP_TIME_SERVER
         string "SNTP server"
-        default "europe.pool.ntp.org"
+        default "pool.ntp.org"
         help
             Hostname of the main SNTP server.
 
-    choice BUILD_TEST_PROGRAM
-        prompt "Program selection"
-        default BUILD_MAIN_PROGRAM
+    config SNTP_TIME_SERVER_BACKUP
+        string "Backup SNTP server"
+        default "time.google.com"
         help
-            Select which program to build. The test program loops digits indefinitely.
-
-        config BUILD_MAIN_PROGRAM
-            bool "Main program"
-        config BUILD_TEST_PROGRAM
-            bool "Test program"
-    endchoice
+            Used when the main SNTP server does not respond.
 
 endmenu
