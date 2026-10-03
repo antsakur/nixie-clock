@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "AAsulari")(type "KiCad")(uri "${KIPRJMOD}/AAsulari.kicad_sym")(options "")(descr ""))
+)
