@@ -113,22 +113,32 @@ static int32_t sanitize_fade(int32_t value)
     return value;
 }
 
-static void settings_save_unlocked(void)
+static esp_err_t settings_save_unlocked(void)
 {
     nvs_handle_t handle;
-    if (nvs_open("display_cfg", NVS_READWRITE, &handle) != ESP_OK) {
-        return;
+    esp_err_t err = nvs_open("display_cfg", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not open display settings: %s", esp_err_to_name(err));
+        return err;
     }
-    nvs_set_i32(handle, "p_digit", poison_cfg.digit_duration_ms);
-    nvs_set_u8(handle, "p_off", poison_cfg.offset);
-    nvs_set_i32(handle, "p_run", poison_cfg.run_duration_ms);
-    nvs_set_u8(handle, "p_inv", poison_cfg.inverse_direction ? 1 : 0);
-    nvs_set_i32(handle, "r_digit", random_cfg.digit_duration_ms);
-    nvs_set_i32(handle, "r_run", random_cfg.run_duration_ms);
-    nvs_set_i32(handle, "fade", fade_ms);
-    nvs_set_u8(handle, "fade_on", fade_enabled ? 1 : 0);
-    nvs_commit(handle);
+
+#define DISPLAY_NVS_SET(call) do { if (err == ESP_OK) err = (call); } while (0)
+    DISPLAY_NVS_SET(nvs_set_i32(handle, "p_digit", poison_cfg.digit_duration_ms));
+    DISPLAY_NVS_SET(nvs_set_u8(handle, "p_off", poison_cfg.offset));
+    DISPLAY_NVS_SET(nvs_set_i32(handle, "p_run", poison_cfg.run_duration_ms));
+    DISPLAY_NVS_SET(nvs_set_u8(handle, "p_inv", poison_cfg.inverse_direction ? 1 : 0));
+    DISPLAY_NVS_SET(nvs_set_i32(handle, "r_digit", random_cfg.digit_duration_ms));
+    DISPLAY_NVS_SET(nvs_set_i32(handle, "r_run", random_cfg.run_duration_ms));
+    DISPLAY_NVS_SET(nvs_set_i32(handle, "fade", fade_ms));
+    DISPLAY_NVS_SET(nvs_set_u8(handle, "fade_on", fade_enabled ? 1 : 0));
+    DISPLAY_NVS_SET(nvs_commit(handle));
+#undef DISPLAY_NVS_SET
+
     nvs_close(handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not save display settings: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 void display_settings_load(void)
@@ -185,7 +195,10 @@ void display_settings_load(void)
     sanitize_random(&random_cfg);
     fade_ms = sanitize_fade(fade_ms);
     if (dirty) {
-        settings_save_unlocked();
+        esp_err_t err = settings_save_unlocked();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Could not persist sanitized display settings");
+        }
     }
     xSemaphoreGive(settings_lock);
 }
@@ -197,13 +210,14 @@ void display_get_poison(display_poison_cfg_t *out)
     xSemaphoreGive(settings_lock);
 }
 
-void display_set_poison(const display_poison_cfg_t *cfg)
+esp_err_t display_set_poison(const display_poison_cfg_t *cfg)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     poison_cfg = *cfg;
     sanitize_poison(&poison_cfg);
-    settings_save_unlocked();
+    esp_err_t err = settings_save_unlocked();
     xSemaphoreGive(settings_lock);
+    return err;
 }
 
 void display_get_random(display_random_cfg_t *out)
@@ -213,13 +227,14 @@ void display_get_random(display_random_cfg_t *out)
     xSemaphoreGive(settings_lock);
 }
 
-void display_set_random(const display_random_cfg_t *cfg)
+esp_err_t display_set_random(const display_random_cfg_t *cfg)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     random_cfg = *cfg;
     sanitize_random(&random_cfg);
-    settings_save_unlocked();
+    esp_err_t err = settings_save_unlocked();
     xSemaphoreGive(settings_lock);
+    return err;
 }
 
 int32_t display_get_fade_ms(void)
@@ -231,12 +246,13 @@ int32_t display_get_fade_ms(void)
     return value;
 }
 
-void display_set_fade_ms(int32_t value)
+esp_err_t display_set_fade_ms(int32_t value)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     fade_ms = sanitize_fade(value);
-    settings_save_unlocked();
+    esp_err_t err = settings_save_unlocked();
     xSemaphoreGive(settings_lock);
+    return err;
 }
 
 bool display_get_fade_enabled(void)
@@ -248,12 +264,13 @@ bool display_get_fade_enabled(void)
     return enabled;
 }
 
-void display_set_fade_enabled(bool enabled)
+esp_err_t display_set_fade_enabled(bool enabled)
 {
     xSemaphoreTake(settings_lock, portMAX_DELAY);
     fade_enabled = enabled;
-    settings_save_unlocked();
+    esp_err_t err = settings_save_unlocked();
     xSemaphoreGive(settings_lock);
+    return err;
 }
 
 static void copy_poison(display_poison_cfg_t *out)

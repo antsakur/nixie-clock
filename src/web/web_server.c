@@ -37,6 +37,13 @@ typedef struct {
 
 static provision_job_t provision_job;
 
+static void record_save_error(esp_err_t *result, esp_err_t err)
+{
+    if (*result == ESP_OK && err != ESP_OK) {
+        *result = err;
+    }
+}
+
 static int hex_val(char c)
 {
     if (c >= '0' && c <= '9') {
@@ -673,6 +680,9 @@ static esp_err_t config_post_handler(httpd_req_t *req)
     }
 
     const char *error = NULL;
+    const char *save_section = NULL;
+    esp_err_t save_err = ESP_OK;
+    char save_error[160];
     if (strcmp(menu, "bright") == 0) {
         char day[8];
         char night[8];
@@ -702,14 +712,16 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         } else if (trans[0] == '\0' || trans_v < 1 || trans_v > 60) {
             error = "Brightness transition must be 1–60 seconds.";
         } else {
-            clock_set_brightness((uint8_t)day_v);
-            clock_set_night_brightness((uint8_t)night_v);
-            clock_set_night_enabled(night_enabled_form);
+            save_section = "Brightness";
+            record_save_error(&save_err, clock_set_brightness((uint8_t)day_v));
+            record_save_error(&save_err, clock_set_night_brightness((uint8_t)night_v));
+            record_save_error(&save_err, clock_set_night_enabled(night_enabled_form));
             if (night_enabled_form) {
-                clock_set_night_hours((uint8_t)start_v, (uint8_t)end_v);
+                record_save_error(&save_err,
+                                  clock_set_night_hours((uint8_t)start_v, (uint8_t)end_v));
             }
-            clock_set_transition_s((uint16_t)trans_v);
-            if (strcmp(action, "trans_test") == 0) {
+            record_save_error(&save_err, clock_set_transition_s((uint16_t)trans_v));
+            if (save_err == ESP_OK && strcmp(action, "trans_test") == 0) {
                 clock_test_brightness_transition();
             }
         }
@@ -722,9 +734,10 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         if (presence_on && (idle[0] == '\0' || idle_v < 1 || idle_v > 240)) {
             error = "Turn off after must be 1–240 minutes.";
         } else {
-            clock_set_presence_enabled(presence_on);
+            save_section = "Presence";
+            record_save_error(&save_err, clock_set_presence_enabled(presence_on));
             if (presence_on) {
-                clock_set_idle_minutes((uint16_t)idle_v);
+                record_save_error(&save_err, clock_set_idle_minutes((uint16_t)idle_v));
             }
         }
     } else if (strcmp(menu, "time") == 0) {
@@ -742,7 +755,8 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         if (index < 0) {
             error = "Choose a timezone.";
         } else {
-            clock_set_zone(index, use_dst);
+            save_section = "Time";
+            record_save_error(&save_err, clock_set_zone(index, use_dst));
         }
     } else {
         char p_digit[12];
@@ -802,14 +816,22 @@ static esp_err_t config_post_handler(httpd_req_t *req)
                 .digit_duration_ms = random_digit,
                 .run_duration_ms = random_run,
             };
-            display_set_poison(&poison);
-            display_set_random(&random_cfg);
-            display_set_fade_enabled(fade_on);
+            save_section = "Display";
+            record_save_error(&save_err, display_set_poison(&poison));
+            record_save_error(&save_err, display_set_random(&random_cfg));
+            record_save_error(&save_err, display_set_fade_enabled(fade_on));
             if (fade_on) {
-                display_set_fade_ms(fade_ms);
+                record_save_error(&save_err, display_set_fade_ms(fade_ms));
             }
-            clock_set_roll_minutes((uint16_t)roll_min);
+            record_save_error(&save_err, clock_set_roll_minutes((uint16_t)roll_min));
         }
+    }
+
+    if (!error && save_err != ESP_OK) {
+        snprintf(save_error, sizeof(save_error), "%s settings could not be saved (%s).",
+                 save_section ? save_section : "Configuration", esp_err_to_name(save_err));
+        ESP_LOGE(TAG, "%s", save_error);
+        error = save_error;
     }
 
     display_after_t after = DISPLAY_AFTER_NONE;

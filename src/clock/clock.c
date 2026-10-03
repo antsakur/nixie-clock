@@ -90,29 +90,39 @@ static char timezone[64] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
 static int zone_index = 3;
 static bool dst_enabled = true;
 
-static void clock_settings_save(void)
+static esp_err_t clock_settings_save(void)
 {
     nvs_handle_t handle;
-    if (nvs_open("clock_cfg", NVS_READWRITE, &handle) != ESP_OK) {
-        return;
+    esp_err_t err = nvs_open("clock_cfg", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not open clock settings: %s", esp_err_to_name(err));
+        return err;
     }
-    nvs_set_u8(handle, "bright", day_brightness);
-    nvs_set_u8(handle, "nbright", night_brightness);
-    nvs_set_u8(handle, "night", night_enabled ? 1 : 0);
-    nvs_set_u8(handle, "nstart", night_start);
-    nvs_set_u8(handle, "nend", night_end);
-    nvs_set_u8(handle, "force", hv_force ? 1 : 0);
-    nvs_set_u8(handle, "pres", presence_enabled ? 1 : 0);
-    nvs_set_u16(handle, "idle", idle_minutes);
-    nvs_set_u16(handle, "rollm", roll_minutes);
-    nvs_set_u16(handle, "trans", transition_s);
-    nvs_set_str(handle, "ntp1", ntp_primary);
-    nvs_set_str(handle, "ntp2", ntp_backup);
-    nvs_set_u8(handle, "zone", zone_index < 0 ? 255 : (uint8_t)zone_index);
-    nvs_set_u8(handle, "dst", dst_enabled ? 1 : 0);
-    nvs_set_str(handle, "tz", timezone);
-    nvs_commit(handle);
+
+#define CLOCK_NVS_SET(call) do { if (err == ESP_OK) err = (call); } while (0)
+    CLOCK_NVS_SET(nvs_set_u8(handle, "bright", day_brightness));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "nbright", night_brightness));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "night", night_enabled ? 1 : 0));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "nstart", night_start));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "nend", night_end));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "force", hv_force ? 1 : 0));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "pres", presence_enabled ? 1 : 0));
+    CLOCK_NVS_SET(nvs_set_u16(handle, "idle", idle_minutes));
+    CLOCK_NVS_SET(nvs_set_u16(handle, "rollm", roll_minutes));
+    CLOCK_NVS_SET(nvs_set_u16(handle, "trans", transition_s));
+    CLOCK_NVS_SET(nvs_set_str(handle, "ntp1", ntp_primary));
+    CLOCK_NVS_SET(nvs_set_str(handle, "ntp2", ntp_backup));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "zone", zone_index < 0 ? 255 : (uint8_t)zone_index));
+    CLOCK_NVS_SET(nvs_set_u8(handle, "dst", dst_enabled ? 1 : 0));
+    CLOCK_NVS_SET(nvs_set_str(handle, "tz", timezone));
+    CLOCK_NVS_SET(nvs_commit(handle));
+#undef CLOCK_NVS_SET
+
     nvs_close(handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not save clock settings: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 static int clock_match_zone(const char *tz, bool *dst)
@@ -450,13 +460,13 @@ static void clock_apply_brightness(const struct tm *timeinfo)
     clock_follow_brightness(timeinfo);
 }
 
-static void clock_brightness_changed(void)
+static esp_err_t clock_brightness_changed(void)
 {
     struct tm timeinfo;
     local_time(&timeinfo);
     ramp_test = false;
     clock_follow_brightness(&timeinfo);
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 uint8_t clock_get_brightness(void)
@@ -464,13 +474,13 @@ uint8_t clock_get_brightness(void)
     return day_brightness;
 }
 
-void clock_set_brightness(uint8_t percent)
+esp_err_t clock_set_brightness(uint8_t percent)
 {
     if (percent > 100) {
         percent = 100;
     }
     day_brightness = percent;
-    clock_brightness_changed();
+    return clock_brightness_changed();
 }
 
 uint8_t clock_get_night_brightness(void)
@@ -478,13 +488,13 @@ uint8_t clock_get_night_brightness(void)
     return night_brightness;
 }
 
-void clock_set_night_brightness(uint8_t percent)
+esp_err_t clock_set_night_brightness(uint8_t percent)
 {
     if (percent > 100) {
         percent = 100;
     }
     night_brightness = percent;
-    clock_brightness_changed();
+    return clock_brightness_changed();
 }
 
 bool clock_get_night_enabled(void)
@@ -492,10 +502,10 @@ bool clock_get_night_enabled(void)
     return night_enabled;
 }
 
-void clock_set_night_enabled(bool enabled)
+esp_err_t clock_set_night_enabled(bool enabled)
 {
     night_enabled = enabled;
-    clock_brightness_changed();
+    return clock_brightness_changed();
 }
 
 uint8_t clock_get_night_start(void)
@@ -508,7 +518,7 @@ uint8_t clock_get_night_end(void)
     return night_end;
 }
 
-void clock_set_night_hours(uint8_t start_hour, uint8_t end_hour)
+esp_err_t clock_set_night_hours(uint8_t start_hour, uint8_t end_hour)
 {
     if (start_hour > 23) {
         start_hour = 23;
@@ -518,7 +528,7 @@ void clock_set_night_hours(uint8_t start_hour, uint8_t end_hour)
     }
     night_start = start_hour;
     night_end = end_hour;
-    clock_brightness_changed();
+    return clock_brightness_changed();
 }
 
 int clock_zone_count(void)
@@ -560,33 +570,33 @@ bool clock_get_dst(void)
     return dst_enabled;
 }
 
-static void clock_store_tz(const char *tz)
+static esp_err_t clock_store_tz(const char *tz)
 {
     strncpy(timezone, tz, sizeof(timezone) - 1);
     timezone[sizeof(timezone) - 1] = '\0';
     clock_apply_timezone();
-    clock_settings_save();
+    return clock_settings_save();
 }
 
-void clock_set_zone(int index, bool dst)
+esp_err_t clock_set_zone(int index, bool dst)
 {
     if (index < 0 || index >= clock_zone_count()) {
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
     zone_index = index;
     dst_enabled = dst && clock_zones[index].dst_tz != NULL;
     const char *tz = dst_enabled ? clock_zones[index].dst_tz : clock_zones[index].std_tz;
-    clock_store_tz(tz);
+    return clock_store_tz(tz);
 }
 
-void clock_set_custom_timezone(const char *tz)
+esp_err_t clock_set_custom_timezone(const char *tz)
 {
     if (!tz || tz[0] == '\0') {
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
     zone_index = -1;
     dst_enabled = false;
-    clock_store_tz(tz);
+    return clock_store_tz(tz);
 }
 
 void clock_format_now(char *buf, size_t len)
@@ -606,9 +616,9 @@ const char *clock_get_timezone(void)
     return timezone;
 }
 
-void clock_set_timezone(const char *tz)
+esp_err_t clock_set_timezone(const char *tz)
 {
-    clock_set_custom_timezone(tz);
+    return clock_set_custom_timezone(tz);
 }
 
 bool clock_get_force_on(void)
@@ -616,7 +626,7 @@ bool clock_get_force_on(void)
     return hv_force;
 }
 
-void clock_set_force_on(bool force)
+esp_err_t clock_set_force_on(bool force)
 {
     hv_force = force;
     if (hv_force) {
@@ -625,7 +635,7 @@ void clock_set_force_on(bool force)
             xTimerStop(timers[2], 0);
         }
     }
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 static bool clock_ntp_name_ok(const char *name)
@@ -649,7 +659,7 @@ bool clock_get_presence_enabled(void)
     return presence_enabled;
 }
 
-void clock_set_presence_enabled(bool enabled)
+esp_err_t clock_set_presence_enabled(bool enabled)
 {
     presence_enabled = enabled;
     if (!presence_enabled || hv_force) {
@@ -663,7 +673,7 @@ void clock_set_presence_enabled(bool enabled)
     } else if (presence_driver_get() == 0 && timers[2]) {
         xTimerReset(timers[2], 0);
     }
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 uint16_t clock_get_idle_minutes(void)
@@ -671,7 +681,7 @@ uint16_t clock_get_idle_minutes(void)
     return idle_minutes;
 }
 
-void clock_set_idle_minutes(uint16_t minutes)
+esp_err_t clock_set_idle_minutes(uint16_t minutes)
 {
     if (minutes < 1) {
         minutes = 1;
@@ -686,7 +696,7 @@ void clock_set_idle_minutes(uint16_t minutes)
             xTimerStop(timers[2], 0);
         }
     }
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 uint16_t clock_get_roll_minutes(void)
@@ -694,7 +704,7 @@ uint16_t clock_get_roll_minutes(void)
     return roll_minutes;
 }
 
-void clock_set_roll_minutes(uint16_t minutes)
+esp_err_t clock_set_roll_minutes(uint16_t minutes)
 {
     if (minutes < 1) {
         minutes = 1;
@@ -705,7 +715,7 @@ void clock_set_roll_minutes(uint16_t minutes)
     if (timers[1]) {
         xTimerChangePeriod(timers[1], pdMS_TO_TICKS((uint32_t)roll_minutes * 60000UL), 0);
     }
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 uint16_t clock_get_transition_s(void)
@@ -713,7 +723,7 @@ uint16_t clock_get_transition_s(void)
     return transition_s;
 }
 
-void clock_set_transition_s(uint16_t seconds)
+esp_err_t clock_set_transition_s(uint16_t seconds)
 {
     if (seconds < 1) {
         seconds = 1;
@@ -721,7 +731,7 @@ void clock_set_transition_s(uint16_t seconds)
         seconds = 60;
     }
     transition_s = seconds;
-    clock_settings_save();
+    return clock_settings_save();
 }
 
 void clock_test_brightness_transition(void)
@@ -763,8 +773,7 @@ bool clock_set_ntp_servers(const char *primary, const char *backup)
         esp_sntp_setservername(0, ntp_primary);
         esp_sntp_setservername(1, ntp_backup);
     }
-    clock_settings_save();
-    return true;
+    return clock_settings_save() == ESP_OK;
 }
 
 static void nvs_init(void)

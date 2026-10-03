@@ -4,38 +4,40 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "esp_err.h"
+
 void clock_start(void);
 uint8_t clock_get_brightness(void);
-void clock_set_brightness(uint8_t percent);
+esp_err_t clock_set_brightness(uint8_t percent);
 uint8_t clock_get_night_brightness(void);
-void clock_set_night_brightness(uint8_t percent);
+esp_err_t clock_set_night_brightness(uint8_t percent);
 bool clock_get_night_enabled(void);
-void clock_set_night_enabled(bool enabled);
+esp_err_t clock_set_night_enabled(bool enabled);
 uint8_t clock_get_night_start(void);
 uint8_t clock_get_night_end(void);
-void clock_set_night_hours(uint8_t start_hour, uint8_t end_hour);
+esp_err_t clock_set_night_hours(uint8_t start_hour, uint8_t end_hour);
 const char *clock_get_timezone(void);
-void clock_set_timezone(const char *tz);
+esp_err_t clock_set_timezone(const char *tz);
 int clock_zone_count(void);
 const char *clock_zone_id(int index);
 const char *clock_zone_label(int index);
 bool clock_zone_has_dst(int index);
 int clock_get_zone_index(void);
 bool clock_get_dst(void);
-void clock_set_zone(int index, bool dst);
-void clock_set_custom_timezone(const char *tz);
+esp_err_t clock_set_zone(int index, bool dst);
+esp_err_t clock_set_custom_timezone(const char *tz);
 void clock_format_now(char *buf, size_t len);
 bool clock_get_force_on(void);
-void clock_set_force_on(bool force);
+esp_err_t clock_set_force_on(bool force);
 bool clock_get_presence_enabled(void);
-void clock_set_presence_enabled(bool enabled);
+esp_err_t clock_set_presence_enabled(bool enabled);
 uint16_t clock_get_idle_minutes(void);
-void clock_set_idle_minutes(uint16_t minutes);
+esp_err_t clock_set_idle_minutes(uint16_t minutes);
 uint16_t clock_get_transition_s(void);
-void clock_set_transition_s(uint16_t seconds);
+esp_err_t clock_set_transition_s(uint16_t seconds);
 void clock_test_brightness_transition(void);
 uint16_t clock_get_roll_minutes(void);
-void clock_set_roll_minutes(uint16_t minutes);
+esp_err_t clock_set_roll_minutes(uint16_t minutes);
 const char *clock_get_ntp_primary(void);
 const char *clock_get_ntp_backup(void);
 bool clock_set_ntp_servers(const char *primary, const char *backup);

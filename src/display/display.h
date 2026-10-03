@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "esp_err.h"
+
 typedef struct {
     int32_t digit_duration_ms;
     int32_t run_duration_ms;
@@ -27,13 +29,13 @@ uint64_t display_format_time(struct tm timeinfo);
 bool display_is_showing_time(void);
 
 void display_get_poison(display_poison_cfg_t *out);
-void display_set_poison(const display_poison_cfg_t *cfg);
+esp_err_t display_set_poison(const display_poison_cfg_t *cfg);
 void display_get_random(display_random_cfg_t *out);
-void display_set_random(const display_random_cfg_t *cfg);
+esp_err_t display_set_random(const display_random_cfg_t *cfg);
 int32_t display_get_fade_ms(void);
-void display_set_fade_ms(int32_t fade_ms);
+esp_err_t display_set_fade_ms(int32_t fade_ms);
 bool display_get_fade_enabled(void);
-void display_set_fade_enabled(bool enabled);
+esp_err_t display_set_fade_enabled(bool enabled);
 
 typedef enum {
     DISPLAY_AFTER_NONE = 0,
