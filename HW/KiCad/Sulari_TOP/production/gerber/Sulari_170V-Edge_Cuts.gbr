@@ -1,0 +1,23 @@
+%TF.GenerationSoftware,KiCad,Pcbnew,7.0.10*%
+%TF.CreationDate,2024-03-19T17:49:45+02:00*%
+%TF.ProjectId,Sulari_170V,53756c61-7269-45f3-9137-30562e6b6963,rev?*%
+%TF.SameCoordinates,PX5473df8PY77adf08*%
+%TF.FileFunction,Profile,NP*%
+%FSLAX46Y46*%
+G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
+G04 Created by KiCad (PCBNEW 7.0.10) date 2024-03-19 17:49:45*
+%MOMM*%
+%LPD*%
+G01*
+G04 APERTURE LIST*
+%TA.AperFunction,Profile*%
+%ADD10C,0.100000*%
+%TD*%
+G04 APERTURE END LIST*
+D10*
+X0Y55000000D02*
+X125000000Y55000000D01*
+X125000000Y0D01*
+X0Y0D01*
+X0Y55000000D01*
+M02*

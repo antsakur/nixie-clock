@@ -1,0 +1,6 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"J2","Conn_01x03_Pin","PinSocket_1x03_P2.54mm_Vertical",3.000000,30.040000,0.000000,top
+"J3","Conn_01x06_Socket","PinSocket_1x06_P2.54mm_Vertical",122.000000,21.150000,180.000000,top
+"J5","Conn_01x02_Socket","PinSocket_1x02_P2.54mm_Vertical",61.000000,25.000000,0.000000,top
+"R5","0R","R_0805_2012Metric_Pad1.20x1.40mm_HandSolder",58.519000,35.403000,180.000000,top
+"U2","ESP32-C6-DevKitC-1","ESP32-C6-DevKitC-1",111.883000,4.256000,180.000000,top
